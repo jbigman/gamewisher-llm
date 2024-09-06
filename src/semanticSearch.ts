@@ -3,8 +3,49 @@ import * as use from '@tensorflow-models/universal-sentence-encoder'
 import '@tensorflow/tfjs'  // Ensure TensorFlow.js is loaded
 import { similarity } from 'ml-distance'
 import { input } from '@inquirer/prompts'
+import mongoose from 'mongoose'
 
-// Load the Universal Sentence Encoder model de tensorflow
+interface IGame {
+  internal:  { url : string},
+}
+
+// Connect to MongoDB Atlas
+async function connectToMongoDB() {
+  const mongoURI = process.env.MONGODB_URI
+  if (!mongoURI) {
+    throw new Error("MongoDB URI is not defined in the environment variables")
+  }
+
+  try {
+    await mongoose.connect(mongoURI)
+    console.log('Successfully connected to MongoDB Atlas')
+  } catch (error) {
+    console.error('Error connecting to MongoDB Atlas:', error)
+  }
+}
+
+// Define a Mongoose schema and model for documents
+const gameSchema = new mongoose.Schema({
+  internal:  { url : String},
+})
+
+const TextModel = mongoose.model<IGame>('Game', gameSchema)
+
+// Load texts from MongoDB
+async function loadTextsFromMongoDB(): Promise<string[]> {
+  try {
+
+    console.error('find()')
+    const texts = await TextModel.find({}).select("internal.url").limit(100)
+
+    return texts.map((doc: IGame) => doc.internal.url)
+  } catch (error) {
+    console.error('Error loading texts from MongoDB:', error)
+    return []
+  }
+}
+
+// Load the Universal Sentence Encoder model
 async function loadUSEModel(): Promise<use.UniversalSentenceEncoder> {
   const model = await use.load()
   return model
@@ -62,19 +103,21 @@ async function performSearch(texts: string[], query: string, topNumber = 3): Pro
   const searchResults = vectorStore.similaritySearch(queryEmbedding, topNumber)
   return searchResults
 }
+
 // Function to handle the interactive prompt loop
 async function interactiveSearch() {
-  const texts = [
-    "j'aime les frites",
-    "je deteste les jeux videos",
-    "je joue aux jeux videos de temps en temps",
-    "les jeux de cartes sont les meilleur",
-    "la couture c'est mon dada"
-  ]
+  await connectToMongoDB() // Connect to MongoDB first
+
+  const texts = await loadTextsFromMongoDB() // Load texts from MongoDB
+  console.error('count', texts.length, texts[0])
+  if (texts.length === 0) {
+    console.log('No texts found in the database.')
+    return
+  }
 
   while (true) {
     // Use prompt to get user input
-    const query = await input({message: "Entrez une phrase pour rechercher la similarité (ou tapez 'exit' pour quitter):"})
+    const query = await input({ message: "Entrez une phrase pour rechercher la similarité (ou tapez 'exit' pour quitter):" })
 
     // Exit condition
     if (!query) {

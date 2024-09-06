@@ -1,7 +1,7 @@
 {
   "scripts": {
     "tsc": "tsc src/semanticSearch.ts",
-    "start": "node src/semanticSearch.js"
+    "start": "node --env-file=.env src/semanticSearch.js"
   },
   "dependencies": {
     "@huggingface/inference": "2",
